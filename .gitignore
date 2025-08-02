@@ -11,3 +11,5 @@ dist/
 
 # Repo-specific
 retrieved_split_*
+
+train-products/
