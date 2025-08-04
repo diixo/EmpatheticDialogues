@@ -24,7 +24,7 @@ def print_info(model_data):
     print("hidden:", opt.get('hidden', None))
     print("num_epochs:", opt.get('num_epochs', None))
 
-    print("***********************************************************")
+    print(68 * '*')
     print("dataset_name:", opt.get('dataset_name', None))
     print("reddit:", opt.get('reddit', None))
     print("max_sent_len:", opt.get('max_sent_len', None))
@@ -40,5 +40,5 @@ def print_info(model_data):
 
 
 print_info(m_pretrained)
-print("***********************************************************")
+print(68 * '*')
 print_info(m_finetuned)
