@@ -11,6 +11,7 @@ m_pretrained = torch.load(path_pretrained, map_location='cpu')
 
 
 def print_info(model_data):
+
     opt = Opt(vars(model_data['opt']))
 
     print("model:", opt['model'])
@@ -39,6 +40,8 @@ def print_info(model_data):
     #     print(f"{k}: {v}")
 
 
-print_info(m_pretrained)
-print(68 * '*')
-print_info(m_finetuned)
+if __name__ == "__main__":
+
+    print_info(m_pretrained)
+    print(68 * '*')
+    print_info(m_finetuned)
