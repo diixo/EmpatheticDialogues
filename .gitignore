@@ -14,3 +14,4 @@ retrieved_split_*
 
 train-products/
 models/
+crawl-300d-2M-vec/
