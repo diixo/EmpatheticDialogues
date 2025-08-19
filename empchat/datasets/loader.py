@@ -47,7 +47,7 @@ def build_dictionary(opt):
 
 def build_bert_dictionary(opt):
     try:
-        from pytorch_pretrained_bert import BertTokenizer
+        from transformers import BertTokenizer
     except ImportError:
         raise Exception(
             "BERT rankers needs pytorch-pretrained-BERT installed. "
