@@ -93,7 +93,7 @@ class EmpDataset(Dataset):
             maxlen += fasttext
             if hasattr(dic, "bert_tokenizer"):
                 try:
-                    from pytorch_pretrained_bert import BertTokenizer
+                    from transformers import BertTokenizer
                 except ImportError:
                     raise Exception(
                         "BERT rankers needs pytorch-pretrained-BERT installed. "
