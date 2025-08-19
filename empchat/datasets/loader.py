@@ -32,7 +32,7 @@ def build_dictionary(opt):
     if opt.model == "bert":
         return build_bert_dictionary(opt)
     else:
-        dict_ = torch.load(os.path.join(opt.reddit_folder, "word_dictionary"))
+        dict_ = torch.load(os.path.join(opt.reddit_folder, "word_dictionary.pth"))
         dict_["iwords"] = dict_["iwords"][: opt.dict_max_words]
         dict_["iwords"].append(UNK_TOKEN)
         dict_["iwords"].append(PAD_TOKEN)
