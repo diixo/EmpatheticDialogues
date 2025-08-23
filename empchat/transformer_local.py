@@ -41,7 +41,7 @@ class TransformerFFN(nn.Module):
         nn.init.xavier_normal_(self.lin2.weight)
 
     def forward(self, input_, mask):
-        return self.lin2(F.relu(self.lin1(self.in_dropout(input_))))
+        return self.lin2(F.gelu(self.lin1(self.in_dropout(input_))))
 
 
 class MultiHeadAttention(nn.Module):
