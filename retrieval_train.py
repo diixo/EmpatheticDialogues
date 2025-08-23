@@ -7,6 +7,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import sys
 import logging
 import time
 
@@ -285,7 +286,37 @@ def main(opt_):
         train_model(opt_)
 
 
+def create_pretrain_args() -> list:
+    return [
+        "retrieval_train.py",
+        "--batch-size", "64",
+        "--cuda",
+        "--dataset-name", "empchat",    # to select chat-type, require reddit_folder
+        "--dict-max-words", "57000",    # 57k is size of word_dictionary.pth
+        "--display-iter", "100",
+        "--embeddings", "crawl-300d-2M-vec/fasttext-crawl-300d-2M.txt", # input, crawl-300d-2M-no-header.txt
+        # https://worksheets.codalab.org/worksheets/0x84b71dd010cf4bff8d9f59cc22b49344
+        "--empchat-folder", "empatheticdialogues",  # input dataset, splited on: train, valid, test
+        "--learn-embeddings",
+        "--learning-rate", "5e-4",
+        "--model", "transformer",
+        "--model-dir", "train-products",    # for created model
+        "--model-name", "test-model",       # will create "model-name.mdl" into model-dir
+        "--n-layers", "4",
+        "--num-epochs", "100",
+        "--optimizer", "adamax",
+        "--reddit-folder", "reddit-data",   # input for: word_dictionary.pth (hardcoded)
+        "--transformer-dim", "300",
+        "--transformer-n-heads", "6",
+        #--reactonly,
+        #--max-hist-len, "4",
+    ]
+
+
 if __name__ == "__main__":
+
+    sys.argv = create_pretrain_args()
+
     opt = get_opt()
     # Set random state
     torch.manual_seed(opt.random_seed)
