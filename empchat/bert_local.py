@@ -22,7 +22,7 @@ class BertAdapter(nn.Module):
         from parlai.agents.bert_ranker.helpers import BertWrapper
 
         try:
-            from pytorch_pretrained_bert import BertModel
+            from transformers import BertModel
         except ImportError:
             raise Exception(
                 "BERT rankers needs pytorch-pretrained-BERT installed. "
