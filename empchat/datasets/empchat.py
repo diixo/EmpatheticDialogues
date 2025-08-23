@@ -81,7 +81,7 @@ class EmpDataset(Dataset):
         }
         # ^ 'windows.misc' was included for compatibility because the code below
         # splits topics on hyphens
-        df = open(os.path.join(data_folder, f"{splitname}.csv")).readlines()
+        df = open(os.path.join(data_folder, f"{splitname}.csv"), mode="r", encoding="utf-8").readlines()
         newmaxlen = maxlen
         self.max_hist_len = history_len
         if fasttext is not None:

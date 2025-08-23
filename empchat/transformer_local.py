@@ -15,15 +15,18 @@ import torch.nn.functional as F
 from empchat.datasets.tokens import PAD_TOKEN
 
 
-def create_position_codes(n_pos, dim, out):
+def create_position_codes(n_pos, dim, out: torch.nn.Parameter):
     position_enc = np.array(
         [
             [pos / np.power(10000, 2 * (j // 2) / dim) for j in range(dim)]
             for pos in range(n_pos)
         ]
     )
-    out[:, 0::2] = torch.FloatTensor(np.sin(position_enc[:, 0::2]))
-    out[:, 1::2] = torch.FloatTensor(np.cos(position_enc[:, 1::2]))
+
+    with torch.no_grad():
+        out[:, 0::2] = torch.FloatTensor(np.sin(position_enc[:, 0::2]))
+        out[:, 1::2] = torch.FloatTensor(np.cos(position_enc[:, 1::2]))
+
     out.detach_()
     out.requires_grad = False
 
