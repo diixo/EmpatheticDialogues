@@ -31,6 +31,81 @@ def create_position_codes(n_pos, dim, out: torch.nn.Parameter):
     out.requires_grad = False
 
 
+class TransformerFFN(nn.Module):
+    def __init__(self, dim, dim_hidden, dropout=0):
+        super(TransformerFFN, self).__init__()
+        self.in_dropout = nn.Dropout(p=dropout)
+        self.lin1 = nn.Linear(dim, dim_hidden)
+        self.lin2 = nn.Linear(dim_hidden, dim)
+        nn.init.xavier_normal_(self.lin1.weight)
+        nn.init.xavier_normal_(self.lin2.weight)
+
+    def forward(self, input_, mask):
+        return self.lin2(F.relu(self.lin1(self.in_dropout(input_))))
+
+
+class MultiHeadAttention(nn.Module):
+    def __init__(self, n_heads, dim, dropout=0):
+        super(MultiHeadAttention, self).__init__()
+        self.n_heads = n_heads
+        self.dim = dim
+        # multi head is seen as one layer, dropout is only applied to the input
+        self.in_dropout = nn.Dropout(p=dropout)
+        self.q_lin = nn.Linear(dim, dim)
+        self.k_lin = nn.Linear(dim, dim)
+        self.v_lin = nn.Linear(dim, dim)
+        nn.init.xavier_normal_(self.q_lin.weight)
+        nn.init.xavier_normal_(self.k_lin.weight)
+        nn.init.xavier_normal_(self.v_lin.weight)
+        self.out_lin = nn.Linear(dim, dim)
+        nn.init.xavier_normal_(self.out_lin.weight)
+
+    def forward(self, input_, mask):
+        # Input is [B, seq_len, dim]
+        # Mask is [B, seq_len]
+        batch_size, seq_len, dim = input_.size()
+        assert (
+            dim == self.dim
+        ), f"Dimensions do not match: {dim} input vs {self.dim} configured"
+        n_heads = self.n_heads
+        dim_per_head = dim // n_heads
+
+        def prepare_head(tensor):
+            # input is [batch_size, seq_len, n_heads * dim_per_head]
+            # output is [batch_size * n_heads, seq_len, dim_per_head]
+            tensor = tensor.view(batch_size, seq_len, n_heads, dim_per_head)
+            tensor = (
+                tensor.transpose(1, 2)
+                .contiguous()
+                .view(batch_size * n_heads, seq_len, dim_per_head)
+            )
+            return tensor
+
+        in_droped = self.in_dropout(input_)
+        query = prepare_head(self.q_lin(in_droped))
+        keys = prepare_head(self.k_lin(in_droped))
+        values = prepare_head(self.v_lin(in_droped))
+        scale = math.sqrt(dim_per_head)
+        dot_prod = query.bmm(keys.transpose(1, 2))
+        # [B * n_heads, seq_len, seq_len]
+        attn_mask = (
+            (mask == 0)
+            .view(batch_size, 1, 1, seq_len)
+            .repeat(1, n_heads, seq_len, 1)
+            .view(batch_size * n_heads, seq_len, seq_len)
+        )
+        dot_prod.masked_fill_(attn_mask, -float("inf"))
+        attn_weights = F.softmax(dot_prod / scale, dim=-1)
+        attentioned = attn_weights.bmm(values)
+        attentioned = (
+            attentioned.view(batch_size, n_heads, seq_len, dim_per_head)
+            .transpose(1, 2)
+            .contiguous()
+            .view(batch_size, seq_len, dim)
+        )
+        return self.out_lin(attentioned)
+
+
 class TransformerModel(nn.Module):
     def __init__(
         self,
@@ -102,80 +177,6 @@ class TransformerModel(nn.Module):
         return norm_layer(tensor.view(-1, self.dim)).view(size)
 
 
-class MultiHeadAttention(nn.Module):
-    def __init__(self, n_heads, dim, dropout=0):
-        super(MultiHeadAttention, self).__init__()
-        self.n_heads = n_heads
-        self.dim = dim
-        # multi head is seen as one layer, dropout is only applied to the input
-        self.in_dropout = nn.Dropout(p=dropout)
-        self.q_lin = nn.Linear(dim, dim)
-        self.k_lin = nn.Linear(dim, dim)
-        self.v_lin = nn.Linear(dim, dim)
-        nn.init.xavier_normal_(self.q_lin.weight)
-        nn.init.xavier_normal_(self.k_lin.weight)
-        nn.init.xavier_normal_(self.v_lin.weight)
-        self.out_lin = nn.Linear(dim, dim)
-        nn.init.xavier_normal_(self.out_lin.weight)
-
-    def forward(self, input_, mask):
-        # Input is [B, seq_len, dim]
-        # Mask is [B, seq_len]
-        batch_size, seq_len, dim = input_.size()
-        assert (
-            dim == self.dim
-        ), f"Dimensions do not match: {dim} input vs {self.dim} configured"
-        n_heads = self.n_heads
-        dim_per_head = dim // n_heads
-
-        def prepare_head(tensor):
-            # input is [batch_size, seq_len, n_heads * dim_per_head]
-            # output is [batch_size * n_heads, seq_len, dim_per_head]
-            tensor = tensor.view(batch_size, seq_len, n_heads, dim_per_head)
-            tensor = (
-                tensor.transpose(1, 2)
-                .contiguous()
-                .view(batch_size * n_heads, seq_len, dim_per_head)
-            )
-            return tensor
-
-        in_droped = self.in_dropout(input_)
-        query = prepare_head(self.q_lin(in_droped))
-        keys = prepare_head(self.k_lin(in_droped))
-        values = prepare_head(self.v_lin(in_droped))
-        scale = math.sqrt(dim_per_head)
-        dot_prod = query.bmm(keys.transpose(1, 2))
-        # [B * n_heads, seq_len, seq_len]
-        attn_mask = (
-            (mask == 0)
-            .view(batch_size, 1, 1, seq_len)
-            .repeat(1, n_heads, seq_len, 1)
-            .view(batch_size * n_heads, seq_len, seq_len)
-        )
-        dot_prod.masked_fill_(attn_mask, -float("inf"))
-        attn_weights = F.softmax(dot_prod / scale, dim=-1)
-        attentioned = attn_weights.bmm(values)
-        attentioned = (
-            attentioned.view(batch_size, n_heads, seq_len, dim_per_head)
-            .transpose(1, 2)
-            .contiguous()
-            .view(batch_size, seq_len, dim)
-        )
-        return self.out_lin(attentioned)
-
-
-class TransformerFFN(nn.Module):
-    def __init__(self, dim, dim_hidden, dropout=0):
-        super(TransformerFFN, self).__init__()
-        self.in_dropout = nn.Dropout(p=dropout)
-        self.lin1 = nn.Linear(dim, dim_hidden)
-        self.lin2 = nn.Linear(dim_hidden, dim)
-        nn.init.xavier_normal_(self.lin1.weight)
-        nn.init.xavier_normal_(self.lin2.weight)
-
-    def forward(self, input_, mask):
-        return self.lin2(F.relu(self.lin1(self.in_dropout(input_))))
-
 
 class TransformerAdapter(nn.Module):
     def __init__(self, opt, dictionary):
@@ -205,7 +206,9 @@ class TransformerAdapter(nn.Module):
             embedding=self.embeddings,
             dropout=dropout,
         )
+        #print(f":{id(self.embeddings)} :{id(self.ctx_transformer.embeddings)} :{id(self.cand_transformer.embeddings)}")
         self.embeddings = self.ctx_transformer.embeddings
+
 
     def forward(self, context_w, cands_w):
         if context_w is not None:
