@@ -26,7 +26,6 @@ def create_position_codes(n_pos, dim, out: torch.nn.Parameter):
     with torch.no_grad():
         out[:, 0::2] = torch.FloatTensor(np.sin(position_enc[:, 0::2]))
         out[:, 1::2] = torch.FloatTensor(np.cos(position_enc[:, 1::2]))
-
     out.detach_()
     out.requires_grad = False
 
@@ -59,6 +58,7 @@ class MultiHeadAttention(nn.Module):
         nn.init.xavier_normal_(self.v_lin.weight)
         self.out_lin = nn.Linear(dim, dim)
         nn.init.xavier_normal_(self.out_lin.weight)
+
 
     def forward(self, input_, mask):
         # Input is [B, seq_len, dim]
@@ -106,6 +106,23 @@ class MultiHeadAttention(nn.Module):
         return self.out_lin(attentioned)
 
 
+class TransformerBlock(nn.Module):
+    def __init__(self, n_heads, dim, dim_hidden, dropout=0):
+        super().__init__()
+        self.attn = MultiHeadAttention(n_heads, dim, dropout=dropout)
+        self.norm1 = nn.LayerNorm(dim)
+        self.ffn = TransformerFFN(dim, dim_hidden, dropout=dropout)
+        self.norm2 = nn.LayerNorm(dim)
+
+    def forward(self, x, mask):
+        x = x + self.attn(x, mask)
+        x = self.norm1(x)
+        x = x + self.ffn(x, mask)
+        x = self.norm2(x)
+        x = x * mask.unsqueeze(-1).float()
+        return x
+
+
 class TransformerModel(nn.Module):
     def __init__(
         self,
@@ -136,16 +153,12 @@ class TransformerModel(nn.Module):
         else:
             self.embeddings = nn.Embedding(vocabulary_dim, dim)
         self.dim = dim
-        self.attentions = nn.ModuleList()
-        self.layer_norm1 = nn.ModuleList()
-        self.ffns = nn.ModuleList()
-        self.layer_norm2 = nn.ModuleList()
 
-        for _ in range(self.n_layers):
-            self.attentions.append(MultiHeadAttention(n_heads, dim, dropout=dropout))
-            self.layer_norm1.append(nn.LayerNorm([dim]))
-            self.ffns.append(TransformerFFN(dim, dim_hidden, dropout=dropout))
-            self.layer_norm2.append(nn.LayerNorm([dim]))
+        self.blocks = nn.ModuleList([
+            TransformerBlock(transformer_n_heads, self.dim, dim_hidden, dropout=dropout)
+            for _ in range(self.n_layers)
+        ])
+
 
     def forward(self, input_, mask):
         """
@@ -160,22 +173,20 @@ class TransformerModel(nn.Module):
         tensor = self.embeddings(input_)
         tensor = tensor + self.position_embeddings(positions).expand_as(tensor)
         tensor *= mask.unsqueeze(-1).float()
-        for i in range(self.n_layers):
-            tensor = tensor + self.attentions[i](tensor, mask)
-            tensor = self.normalize(tensor, self.layer_norm1[i])
-            tensor = tensor + self.ffns[i](tensor, mask)
-            tensor = self.normalize(tensor, self.layer_norm2[i])
-            tensor *= mask.unsqueeze(-1).float()
+
+        for block in self.blocks:
+            tensor = block(tensor, mask)
+
         if self.fix_mean:
             output = tensor.sum(dim=1) / mask.float().sum(dim=1).unsqueeze(-1)
         else:
             output = tensor.mean(dim=1)
         return output
 
+
     def normalize(self, tensor, norm_layer):
         size = tensor.size()
         return norm_layer(tensor.view(-1, self.dim)).view(size)
-
 
 
 class TransformerAdapter(nn.Module):

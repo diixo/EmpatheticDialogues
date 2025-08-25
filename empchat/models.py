@@ -17,7 +17,7 @@ from empchat.transformer_local import TransformerAdapter
 
 def load_embeddings(opt, dictionary, model):
     path = opt.embeddings
-    logging.info(f"Loading embeddings file from {path}")
+    logging.info(f"::Loading embeddings file from {path}")
     emb_table = model.embeddings.weight
     requires_grad = emb_table.requires_grad
 
@@ -39,7 +39,7 @@ def load_embeddings(opt, dictionary, model):
                         vec = vec / vec.norm(2)
                     emb_table.data[dictionary[w]] = vec
                     missing_dict.remove(w)
-        sample = ", ".join(list(missing_dict)[:8])
+        sample = ", ".join(list(missing_dict)[:10])
         logging.info(
             f"Loaded {n_added} vectors from embeddings file; {len(missing_dict)} are "
             f"missing, among which: {sample}"
@@ -65,6 +65,7 @@ def load(filename, new_opt):
     logging.info(f"Loading model {filename}")
     saved_params = torch.load(filename, map_location=lambda storage, loc: storage)
     word_dict = saved_params["word_dict"]
+    # word_dict = { words, iwords, wordcounts }
     state_dict = saved_params["state_dict"]
     saved_opt = saved_params["opt"]
     for k, v in vars(new_opt).items():
@@ -80,7 +81,7 @@ def load(filename, new_opt):
     return net, word_dict
 
 
-def create(opt, dict_words):
+def create(opt, dict_words) -> nn.Module:
     if opt.model == "bert":
         return BertAdapter(opt, dict_words)
     elif opt.model == "transformer":
